@@ -22,7 +22,6 @@ import { useCancelOrder } from '@/hooks/useOrders'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import FileViewer from '@/components/FileViewer'
 import OrderStatusBadge from '@/components/OrderStatusBadge'
-import OrderTimeline from '@/components/OrderTimeline'
 import { useToast } from '@/contexts/ToastContext'
 
 const TrackOrderPage: React.FC = () => {
@@ -32,7 +31,7 @@ const TrackOrderPage: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const { showSuccess, showError } = useToast()
 
-  // Track order query - use specific order tracking for accurate per-order data
+  // Track order query - use trackByCode for flexible tracking (order ID, tracking ID, or order URL)
   const { 
     data: trackingResponse, 
     isLoading, 
@@ -40,9 +39,9 @@ const TrackOrderPage: React.FC = () => {
     refetch 
   } = useQuery(
     ['trackOrder', id],
-    () => orderService.getOrderTracking(Number(id)),
+    () => orderService.trackByCode(id || ''),
     {
-      enabled: !!id && !isNaN(Number(id)),
+      enabled: !!id && id.trim().length > 0,
       staleTime: 10000, // 10 seconds - fresher data for tracking
       refetchInterval: 15000, // Refetch every 15 seconds for real-time updates
       refetchIntervalInBackground: true,
@@ -142,24 +141,34 @@ const TrackOrderPage: React.FC = () => {
         {/* Search Form */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Track Your Order</h1>
-          <form onSubmit={handleSearch} className="flex gap-4">
-            <div className="flex-1">
+          <form onSubmit={handleSearch} className="space-y-4">
+            <div>
+              <label htmlFor="search-order" className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Order Information
+              </label>
               <input
+                id="search-order"
                 type="text"
-                placeholder="Enter order ID, tracking ID, or order URL"
+                placeholder="e.g. JO-2024-001, 123456, or order ID"
                 value={searchOrderId}
                 onChange={(e) => setSearchOrderId(e.target.value)}
-                className="input"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                You can search by order ID, tracking ID from order_trackings table, or order URL
-              </p>
+              <div className="mt-2 text-sm text-gray-600">
+                <p className="font-medium mb-1">You can search by:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li><strong>Tracking ID:</strong> Get from Order page, eg. 1,2,3...</li>
+                  <li><strong>Order ID:</strong> JO-2024-001, JO-2024-002...</li>
+                  
+                </ul>
+              </div>
             </div>
             <button
               type="submit"
-              className="btn btn-primary btn-md"
+              disabled={!searchOrderId.trim()}
+              className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Search className="h-4 w-4 mr-2" />
+              <Search className="h-5 w-5 mr-2" />
               Track Order
             </button>
           </form>

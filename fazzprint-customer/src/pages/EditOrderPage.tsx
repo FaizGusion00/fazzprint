@@ -174,7 +174,7 @@ const EditOrderPage: React.FC = () => {
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-5 w-5 mr-1" />
-         
+        
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Edit Order</h1>

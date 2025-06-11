@@ -13,7 +13,9 @@ import {
   Package,
   ChevronLeft,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  Check
 } from 'lucide-react'
 import { useOrders } from '@/hooks/useOrders'
 import { OrderFilters } from '@/services/orderService'
@@ -24,6 +26,7 @@ import OrderStatusBadge from '@/components/OrderStatusBadge'
 const OrdersPage: React.FC = () => {
   const { showSuccess } = useToast()
   const [currentPage, setCurrentPage] = useState(1)
+  const [copiedText, setCopiedText] = useState<string>('')
   const [filters, setFilters] = useState<OrderFilters>({
     status: '',
     search: '',
@@ -76,6 +79,21 @@ const OrdersPage: React.FC = () => {
   const isOverdue = (dueDate: string | undefined) => {
     if (!dueDate) return false
     return new Date(dueDate) < new Date()
+  }
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedText(text)
+      showSuccess('Copied!', `${label} copied to clipboard`)
+      
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedText('')
+      }, 2000)
+    } catch (error) {
+      showSuccess('Copied!', `${label}: ${text}`) // Fallback notification
+    }
   }
 
   if (isLoading) {
@@ -195,89 +213,244 @@ const OrdersPage: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {orders.length > 0 ? (
           <>
-            <div className="overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Order
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Quantity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {orders.map((order) => {
-                    const StatusIcon = getStatusIcon(order.status)
-                    const overdue = isOverdue(order.due_date)
-                    
-                    return (
-                      <tr key={order.job_order_id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                              <StatusIcon className="h-5 w-5 text-gray-400" />
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tracking ID
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Order
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Quantity
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Due Date
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {orders.map((order) => {
+                      const StatusIcon = getStatusIcon(order.status)
+                      const overdue = isOverdue(order.due_date)
+                      
+                      return (
+                        <tr key={order.job_order_id} className="hover:bg-gray-50">
+                          {/* Tracking ID Column */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-mono text-gray-900">
+                                {(order as any).tracking_id || `${order.job_order_id}`}
+                              </span>
+                              <button
+                                onClick={() => copyToClipboard(
+                                  (order as any).tracking_id || `${order.job_order_id}`, 
+                                  'Tracking ID'
+                                )}
+                                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                title="Copy tracking ID"
+                              >
+                                {copiedText === ((order as any).tracking_id || `${order.job_order_id}`) ? (
+                                  <Check className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </button>
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {order.title}
+                          </td>
+                          
+                          {/* Order Column */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0">
+                                <StatusIcon className="h-5 w-5 text-gray-400" />
                               </div>
-                              <div className="text-sm text-gray-500">
-                                {order.job_order_url}
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {order.title}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm font-mono text-gray-500">
+                                    {order.job_order_url}
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard(order.job_order_url, 'Order URL')}
+                                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                    title="Copy order URL"
+                                  >
+                                    {copiedText === order.job_order_url ? (
+                                      <Check className="h-3 w-3 text-green-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </button>
+                                </div>
                               </div>
                             </div>
+                          </td>
+                          
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <OrderStatusBadge 
+                              status={order.status as 'draft' | 'pending' | 'in_progress' | 'completed' | 'cancelled'} 
+                              size="sm"
+                            />
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.quantity.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.due_date ? (
+                              <div className={`flex items-center ${overdue ? 'text-red-600' : ''}`}>
+                                <Calendar className="h-4 w-4 mr-1" />
+                                {formatDate(order.due_date)}
+                                {overdue && <span className="ml-1 text-xs">(Overdue)</span>}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">No due date</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDate(order.created_at)}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <Link
+                              to={`/orders/${order.job_order_id}`}
+                              className="text-primary-600 hover:text-primary-500 inline-flex items-center"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Link>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4">
+              {orders.map((order) => {
+                const StatusIcon = getStatusIcon(order.status)
+                const overdue = isOverdue(order.due_date)
+                
+                return (
+                  <div key={order.job_order_id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <StatusIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-medium text-gray-900 truncate">
+                            {order.title}
+                          </h3>
+                          <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-xs font-mono text-gray-500">
+                              {order.job_order_url}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(order.job_order_url, 'Order URL')}
+                              className="p-1 text-gray-400 hover:text-gray-600 transition-colors touch-manipulation"
+                              title="Copy order URL"
+                            >
+                              {copiedText === order.job_order_url ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <OrderStatusBadge 
-                            status={order.status as 'draft' | 'pending' | 'in_progress' | 'completed' | 'cancelled'} 
-                            size="sm"
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        </div>
+                      </div>
+                      <OrderStatusBadge 
+                        status={order.status as 'draft' | 'pending' | 'in_progress' | 'completed' | 'cancelled'} 
+                        size="sm"
+                      />
+                    </div>
+
+                    {/* Tracking ID */}
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-500">Tracking ID</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-mono text-gray-900">
+                            {(order as any).tracking_id || `TRK-${order.job_order_id}`}
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(
+                              (order as any).tracking_id || `TRK-${order.job_order_id}`, 
+                              'Tracking ID'
+                            )}
+                            className="p-1 text-gray-400 hover:text-gray-600 transition-colors touch-manipulation"
+                            title="Copy tracking ID"
+                          >
+                            {copiedText === ((order as any).tracking_id || `TRK-${order.job_order_id}`) ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Details Grid */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div>
+                        <div className="text-xs text-gray-500">Quantity</div>
+                        <div className="text-sm font-medium text-gray-900">
                           {order.quantity.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Created</div>
+                        <div className="text-sm text-gray-900">
+                          {formatDate(order.created_at)}
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-xs text-gray-500">Due Date</div>
+                        <div className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
                           {order.due_date ? (
-                            <div className={`flex items-center ${overdue ? 'text-red-600' : ''}`}>
+                            <div className="flex items-center">
                               <Calendar className="h-4 w-4 mr-1" />
                               {formatDate(order.due_date)}
                               {overdue && <span className="ml-1 text-xs">(Overdue)</span>}
                             </div>
                           ) : (
-                            <span className="text-gray-400">No due date</span>
+                            'No due date set'
                           )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(order.created_at)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Link
-                            to={`/orders/${order.job_order_id}`}
-                            className="text-primary-600 hover:text-primary-500 inline-flex items-center"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="flex justify-end">
+                      <Link
+                        to={`/orders/${order.job_order_id}`}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-md hover:bg-primary-100 touch-manipulation"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Details
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Pagination */}
