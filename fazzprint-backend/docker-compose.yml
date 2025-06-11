@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fazzprint_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: fazzprint_erp
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_USER: fazzprint_user
+      MYSQL_PASSWORD: fazzprint_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    networks:
+      - fazzprint_network
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: fazzprint_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: root123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - fazzprint_network
+
+  # Laravel Backend API
+  laravel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fazzprint_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_HOST=mysql
+      - DB_DATABASE=fazzprint_erp
+      - DB_USERNAME=root
+      - DB_PASSWORD=root123
+    depends_on:
+      - mysql
+    networks:
+      - fazzprint_network
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+volumes:
+  mysql_data:
+  vendor:
+
+networks:
+  fazzprint_network:
+    driver: bridge 
