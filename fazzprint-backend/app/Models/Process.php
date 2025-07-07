@@ -58,6 +58,8 @@ class Process extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_PAUSED = 'paused';
     const STATUS_CANCELLED = 'cancelled';
+    // Add this for compatibility with controller usage
+    const STATUS_ACTIVE = self::STATUS_IN_PROGRESS;
 
     /**
      * Get the process step that owns this process

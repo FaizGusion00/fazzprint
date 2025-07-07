@@ -69,7 +69,7 @@ class ProcessController extends Controller
             ], 403);
         }
 
-        $availableQRs = QRCode::where('status', QRCode::STATUS_ACTIVE)
+        $availableQRs = QRCode::where('is_active', true)
             ->with([
                 'jobOrder:job_order_id,title,quantity,status,customer_id',
                 'jobOrder.customer:user_id,full_name',
@@ -508,7 +508,7 @@ class ProcessController extends Controller
             ->with(['processStep.jobOrder.customer'])
             ->get();
 
-        $availableWork = QRCode::where('status', QRCode::STATUS_ACTIVE)
+        $availableWork = QRCode::where('is_active', true)
             ->whereHas('jobOrder.processSteps', function ($query) {
                 $query->whereDoesntHave('processes', function ($q) {
                     $q->where('status', Process::STATUS_COMPLETED);
@@ -518,6 +518,11 @@ class ProcessController extends Controller
             ->limit(10)
             ->get();
 
+        $completedToday = Process::where('pic_id', $user->user_id)
+            ->where('status', Process::STATUS_COMPLETED)
+            ->whereDate('updated_at', now()->toDateString())
+            ->count();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -526,7 +531,8 @@ class ProcessController extends Controller
                 'summary' => [
                     'active_count' => $activeProcesses->count(),
                     'available_count' => $availableWork->count(),
-                    'total_active_time' => $activeProcesses->sum('elapsed_time')
+                    'total_active_time' => $activeProcesses->sum('elapsed_time'),
+                    'completed_today' => $completedToday
                 ]
             ]
         ]);

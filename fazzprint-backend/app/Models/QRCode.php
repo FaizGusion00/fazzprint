@@ -10,6 +10,12 @@ class QRCode extends Model
     use HasFactory;
 
     /**
+     * Status constants for QR codes
+     */
+    const STATUS_ACTIVE = 'active';
+    const STATUS_INACTIVE = 'inactive';
+
+    /**
      * The primary key for the model.
      *
      * @var string

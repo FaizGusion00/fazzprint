@@ -108,9 +108,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Sales Manager routes
     Route::middleware(['check.role:sales_manager,admin'])->prefix('sales')->group(function () {
+        Route::get('/dashboard/stats', [OrderController::class, 'salesDashboardStats']);
+        Route::get('/orders/recent', [OrderController::class, 'recentOrders']);
         Route::get('/pending-orders', [OrderController::class, 'pendingOrders']);
         Route::post('/assign-staff/{orderId}', [ProcessController::class, 'assignStaff']);
         Route::get('/staff-performance', [ProcessController::class, 'staffPerformance']);
+        Route::post('/jobs/create', [OrderController::class, 'createJob']);
+        Route::put('/jobs/{jobId}/update', [OrderController::class, 'updateJob']);
+        Route::post('/jobs/{jobId}/validate-payment', [OrderController::class, 'validatePayment']);
+        Route::get('/payments/pending', [OrderController::class, 'pendingPayments']);
+        Route::get('/payments/confirmed', [OrderController::class, 'confirmedPayments']);
     });
 
     // Staff-only routes

@@ -1322,4 +1322,396 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get sales manager dashboard statistics
+     */
+    public function salesDashboardStats(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        try {
+            // Get current week's stats
+            $currentWeekOrders = JobOrder::where('created_at', '>=', now()->startOfWeek())
+                ->count();
+            
+            $lastWeekOrders = JobOrder::where('created_at', '>=', now()->subWeek()->startOfWeek())
+                ->where('created_at', '<', now()->startOfWeek())
+                ->count();
+
+            // Calculate percentage change
+            $ordersChange = $lastWeekOrders > 0 
+                ? (($currentWeekOrders - $lastWeekOrders) / $lastWeekOrders) * 100 
+                : 0;
+
+            // Get current month's revenue
+            $currentMonthRevenue = JobOrder::where('created_at', '>=', now()->startOfMonth())
+                ->where('payment_status', 'paid')
+                ->sum('final_price');
+
+            $lastMonthRevenue = JobOrder::where('created_at', '>=', now()->subMonth()->startOfMonth())
+                ->where('created_at', '<', now()->startOfMonth())
+                ->where('payment_status', 'paid')
+                ->sum('final_price');
+
+            // Calculate revenue change
+            $revenueChange = $lastMonthRevenue > 0 
+                ? (($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100 
+                : 0;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'pending_orders' => JobOrder::where('status', 'pending')->count(),
+                    'active_jobs' => JobOrder::where('status', 'in_progress')->count(),
+                    'completed_jobs' => JobOrder::where('status', 'completed')->count(),
+                    'total_revenue' => JobOrder::where('payment_status', 'paid')->sum('final_price'),
+                    'pending_payments' => JobOrder::where('payment_status', 'pending')->count(),
+                    'confirmed_payments' => JobOrder::where('payment_status', 'paid')->count(),
+                    'customer_count' => JobOrder::where('created_at', '>=', now()->subDays(30))
+                        ->distinct('customer_id')
+                        ->count('customer_id'),
+                    'pending_orders_change' => round($ordersChange, 1),
+                    'revenue_change' => round($revenueChange, 1)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch dashboard stats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get recent orders for sales manager dashboard
+     */
+    public function recentOrders(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        try {
+            $recentOrders = JobOrder::with(['customer:user_id,full_name'])
+                ->orderBy('created_at', 'desc')
+                ->take(5)
+                ->get()
+                ->map(function ($order) {
+                    return [
+                        'job_order_id' => $order->job_order_id,
+                        'title' => $order->title,
+                        'customer' => [
+                            'full_name' => $order->customer->full_name
+                        ],
+                        'created_at' => $order->created_at,
+                        'status' => $order->status,
+                        'payment_status' => $order->payment_status,
+                        'quoted_price' => $order->quoted_price,
+                        'final_price' => $order->final_price
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $recentOrders
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch recent orders',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new job from a customer order (Sales Manager only)
+     */
+    public function createJob(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required|exists:job_orders,job_order_id',
+            'quoted_price' => 'required|numeric|min:0',
+            'process_steps' => 'required|array|min:1',
+            'process_steps.*.name' => 'required|string',
+            'process_steps.*.duration' => 'required|integer|min:1',
+            'process_steps.*.staff_id' => 'nullable|exists:users,user_id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $order = JobOrder::findOrFail($request->order_id);
+            
+            // Update order with job details
+            $order->update([
+                'quoted_price' => $request->quoted_price,
+                'status' => 'draft',
+                'sales_manager_id' => $user->user_id
+            ]);
+
+            // Create process steps
+            foreach ($request->process_steps as $step) {
+                $processStep = $order->processSteps()->create([
+                    'name' => $step['name'],
+                    'estimated_duration' => $step['duration'],
+                    'status' => 'pending'
+                ]);
+
+                if (!empty($step['staff_id'])) {
+                    $processStep->processes()->create([
+                        'pic_id' => $step['staff_id'],
+                        'status' => 'pending'
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Job created successfully',
+                'data' => $order->load(['processSteps.processes.staff'])
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create job',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update job details (Sales Manager only)
+     */
+    public function updateJob(Request $request, $jobId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'quoted_price' => 'nullable|numeric|min:0',
+            'final_price' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:draft,pending,in_progress,completed,cancelled',
+            'process_steps' => 'nullable|array',
+            'process_steps.*.step_id' => 'required|exists:process_steps,process_step_id',
+            'process_steps.*.staff_id' => 'nullable|exists:users,user_id',
+            'process_steps.*.duration' => 'nullable|integer|min:1'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $order = JobOrder::findOrFail($jobId);
+            
+            // Update order details
+            $updateData = array_filter($request->only([
+                'quoted_price',
+                'final_price',
+                'status'
+            ]));
+
+            if (!empty($updateData)) {
+                $order->update($updateData);
+            }
+
+            // Update process steps if provided
+            if ($request->has('process_steps')) {
+                foreach ($request->process_steps as $step) {
+                    $processStep = $order->processSteps()->findOrFail($step['step_id']);
+                    
+                    if (isset($step['duration'])) {
+                        $processStep->update(['estimated_duration' => $step['duration']]);
+                    }
+
+                    if (isset($step['staff_id'])) {
+                        $processStep->processes()->updateOrCreate(
+                            ['process_step_id' => $step['step_id']],
+                            ['pic_id' => $step['staff_id']]
+                        );
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Job updated successfully',
+                'data' => $order->load(['processSteps.processes.staff'])
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update job',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate and confirm payment for a job (Sales Manager only)
+     */
+    public function validatePayment(Request $request, $jobId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'payment_status' => 'required|in:pending,partial,paid',
+            'amount_paid' => 'required|numeric|min:0',
+            'payment_notes' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $order = JobOrder::findOrFail($jobId);
+            
+            $order->update([
+                'payment_status' => $request->payment_status,
+                'amount_paid' => $request->amount_paid,
+                'payment_notes' => $request->payment_notes,
+                'payment_confirmed_at' => $request->payment_status === 'paid' ? now() : null,
+                'payment_confirmed_by' => $request->payment_status === 'paid' ? $user->user_id : null,
+                'balance_due' => $order->final_price - $request->amount_paid
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment status updated successfully',
+                'data' => $order
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update payment status',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get pending payments (Sales Manager only)
+     */
+    public function pendingPayments(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        try {
+            $pendingPayments = JobOrder::with(['customer:user_id,full_name'])
+                ->where('payment_status', 'pending')
+                ->orWhere('payment_status', 'partial')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $pendingPayments
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch pending payments',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get confirmed payments (Sales Manager only)
+     */
+    public function confirmedPayments(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isSalesManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
+        }
+
+        try {
+            $confirmedPayments = JobOrder::with(['customer:user_id,full_name'])
+                ->where('payment_status', 'paid')
+                ->orderBy('payment_confirmed_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $confirmedPayments
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch confirmed payments',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
