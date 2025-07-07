@@ -65,12 +65,21 @@ A modern, responsive customer portal for FazzPrint printing services built with 
    cp .env.example .env
    ```
    
-   Update the `.env` file:
+   The `.env` file is pre-configured for development. To switch between development and production servers:
+   
+   **For Development (default):**
    ```
-   VITE_API_BASE_URL=http://localhost:8000/api
-   VITE_APP_NAME=FazzPrint Customer Portal
-   VITE_APP_ENV=development
+   VITE_USE_PROD_API=false
+   VITE_API_BASE_URL_DEV=http://localhost:8000/api
    ```
+   
+   **For Production:**
+   ```
+   VITE_USE_PROD_API=true
+   VITE_API_BASE_URL_PROD=https://api.fazzprint.com/api
+   ```
+   
+   **Quick Switch:** Just change `VITE_USE_PROD_API=false` to `VITE_USE_PROD_API=true` to switch servers!
 
 4. **Start the development server**
    ```bash
@@ -122,6 +131,29 @@ src/
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix ESLint errors
+
+## 🔧 Centralized Configuration
+
+The application uses a centralized configuration system for easy server switching:
+
+### Server Configuration
+- **Development Server**: `http://localhost:8000/api` (default)
+- **Production Server**: `https://api.fazzprint.com/api` (configurable)
+- **Switch Method**: Change `VITE_USE_PROD_API` in `.env` file
+
+### Configuration Files
+- `src/config.ts` - Centralized configuration logic
+- `.env` - Environment variables (not committed)
+- `.env.example` - Template for new developers
+
+### Usage
+```typescript
+import { API_BASE_URL, APP_CONFIG } from '@/config'
+
+// API_BASE_URL automatically switches based on VITE_USE_PROD_API
+console.log(APP_CONFIG.isProduction) // true/false
+console.log(APP_CONFIG.apiBaseUrl)   // Current API URL
+```
 
 ## 🌐 API Integration
 

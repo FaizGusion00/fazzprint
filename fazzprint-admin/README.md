@@ -51,12 +51,23 @@ npm install
 ```bash
 # Create environment file
 cp .env.example .env
-
-# Edit the .env file with your settings
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_APP_NAME=FazzPrint Admin Portal
-VITE_APP_ENV=development
 ```
+
+The `.env` file is pre-configured for development. To switch between development and production servers:
+
+**For Development (default):**
+```
+VITE_USE_PROD_API=false
+VITE_API_BASE_URL_DEV=http://localhost:8000/api
+```
+
+**For Production:**
+```
+VITE_USE_PROD_API=true
+VITE_API_BASE_URL_PROD=https://api.fazzprint.com/api
+```
+
+**Quick Switch:** Just change `VITE_USE_PROD_API=false` to `VITE_USE_PROD_API=true` to switch servers!
 
 ### 3. **Start Development Server**
 ```bash
@@ -124,6 +135,30 @@ fazzprint-admin/
 - ⏱️ Work time tracking
 - 📋 Process management
 - 📊 Personal performance metrics
+
+## 🔧 **Centralized Configuration**
+
+The admin portal uses a centralized configuration system for easy server switching:
+
+### Server Configuration
+- **Development Server**: `http://localhost:8000/api` (default)
+- **Production Server**: `https://api.fazzprint.com/api` (configurable)
+- **Switch Method**: Change `VITE_USE_PROD_API` in `.env` file
+
+### Configuration Files
+- `src/config.ts` - Centralized configuration logic
+- `.env` - Environment variables (not committed)
+- `.env.example` - Template for new developers
+
+### Usage
+```typescript
+import { API_BASE_URL, APP_CONFIG } from '@/config'
+
+// API_BASE_URL automatically switches based on VITE_USE_PROD_API
+console.log(APP_CONFIG.isProduction) // true/false
+console.log(APP_CONFIG.apiBaseUrl)   // Current API URL
+console.log(APP_CONFIG.defaultRole)  // Default user role
+```
 
 ## 🔧 **API Integration**
 
